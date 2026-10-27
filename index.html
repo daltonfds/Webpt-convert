@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebP para PNG — Conversor de Imagens</title>
+    <meta name="description" content="Converte imagens WebP para PNG diretamente no teu navegador. Privado, gratuito e sem enviar imagens para servidores.">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        :root {
+            --primary: #2563eb; --primary-hover: #1d4ed8;
+            --background: #f8fafc; --surface: #ffffff; --text: #0f172a;
+            --muted: #64748b; --border: #e2e8f0; --success: #15803d; --error: #b91c1c;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: var(--background); color: var(--text); min-height: 100vh; }
+        button, input { font: inherit; }
+        button { cursor: pointer; }
+        button:focus-visible, .dropzone:focus-within { outline: 3px solid #93c5fd; outline-offset: 3px; }
+        .header { background: var(--surface); border-bottom: 1px solid var(--border); }
+        .header-inner { max-width: 1050px; margin: auto; padding: 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .brand { font-size: 19px; font-weight: 800; letter-spacing: -0.5px; }
+        .privacy-badge { color: var(--success); background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 999px; padding: 7px 11px; font-size: 12px; font-weight: 700; }
+        main { max-width: 850px; margin: 0 auto; padding: 54px 20px 60px; }
+        .intro { text-align: center; margin-bottom: 34px; }
+        .intro h1 { font-size: clamp(28px, 5vw, 43px); line-height: 1.15; letter-spacing: -1.5px; margin: 0 0 15px; }
+        .intro p { color: var(--muted); line-height: 1.7; max-width: 570px; margin: auto; font-size: 15px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 25px; box-shadow: 0 8px 30px rgb(15 23 42 / 4%); }
+        .dropzone { display: block; border: 2px dashed #cbd5e1; border-radius: 14px; padding: 36px 18px; text-align: center; background: #fafcff; transition: border-color 0.2s, background 0.2s; cursor: pointer; }
+        .dropzone.dragging { border-color: var(--primary); background: #eff6ff; }
+        .upload-icon { width: 54px; height: 54px; margin: 0 auto 15px; display: grid; place-items: center; border-radius: 15px; background: #eff6ff; color: var(--primary); font-size: 28px; }
+        .dropzone strong { display: block; margin-bottom: 8px; font-size: 17px; }
+        .dropzone p { margin: 0 0 17px; color: var(--muted); font-size: 14px; }
+        .select-button { display: inline-block; color: white; background: var(--primary); border-radius: 9px; padding: 11px 17px; font-size: 14px; font-weight: 700; }
+        .dropzone:hover .select-button { background: var(--primary-hover); }
+        .dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+        .file-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 25px 0 15px; }
+        .file-summary h2 { font-size: 16px; margin: 0; }
+        .file-count { color: var(--muted); font-size: 13px; }
+        .text-button { background: transparent; border: 0; color: var(--primary); font-size: 13px; font-weight: 700; padding: 8px 0 8px 8px; }
+        .text-button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .preview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .preview-item { min-width: 0; border: 1px solid var(--border); border-radius: 11px; overflow: hidden; background: white; }
+        .preview-image { height: 125px; padding: 8px; display: grid; place-items: center; background-color: #f1f5f9; background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }
+        .preview-image img { width: 100%; height: 100%; object-fit: contain; }
+        .preview-info { padding: 9px; }
+        .preview-name { display: block; font-size: 12px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+        .preview-size { display: block; margin-top: 5px; font-size: 11px; color: var(--muted); }
+        .empty-state { padding: 24px 10px; text-align: center; color: var(--muted); font-size: 13px; }
+        .actions { margin-top: 25px; }
+        .convert-button { display: block; width: 100%; padding: 15px 18px; border: 0; border-radius: 10px; background: var(--primary); color: white; font-weight: 700; font-size: 15px; transition: background 0.2s; }
+        .convert-button:hover:not(:disabled) { background: var(--primary-hover); }
+        .convert-button:disabled { opacity: 0.45; cursor: not-allowed; }
+        .status { display: none; margin-top: 17px; border-radius: 10px; padding: 13px 15px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+        .status.visible { display: block; }
+        .status.info { background: #eff6ff; color: #1d4ed8; }
+        .status.success { background: #f0fdf4; color: #166534; }
+        .status.error { background: #fef2f2; color: #991b1b; }
+        .progress-track { height: 5px; margin-top: 10px; border-radius: 999px; overflow: hidden; background: #dbeafe; }
+        .progress-bar { height: 100%; width: 0; background: var(--primary); transition: width 0.2s; }
+        .privacy-note { display: flex; gap: 12px; margin-top: 20px; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: #fafafa; }
+        .privacy-note .lock { font-size: 20px; }
+        .privacy-note strong { display: block; font-size: 13px; margin-bottom: 5px; }
+        .privacy-note p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+        footer { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; padding: 0 20px 30px; }
+        @media (max-width: 600px) {
+            main { padding: 35px 14px 40px; }
+            .header-inner { padding: 16px; }
+            .card { padding: 16px; }
+            .dropzone { padding: 28px 12px; }
+            .preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .preview-image { height: 130px; }
+            .intro h1 { letter-spacing: -0.8px; }
+            .privacy-badge { font-size: 10px; padding: 6px 8px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <div class="brand">WebP → PNG</div>
+            <div class="privacy-badge">✓ 100% no navegador</div>
+        </div>
+    </header>
+
+    <main>
+        <section class="intro">
+            <h1>Converte WebP para PNG</h1>
+            <p>Seleciona várias imagens, converte-as em segundos e descarrega tudo num único ficheiro ZIP. As tuas imagens permanecem no teu dispositivo.</p>
+        </section>
+
+        <section class="card" aria-label="Conversor de imagens">
+            <label class="dropzone" id="dropzone" for="fileInput">
+                <input id="fileInput" type="file" accept="image/webp,.webp" multiple aria-label="Selecionar imagens WebP">
+                <div class="upload-icon" aria-hidden="true">↑</div>
+                <strong>Arrasta as tuas imagens para aqui</strong>
+                <p>Ou seleciona vários ficheiros WebP do teu dispositivo.</p>
+                <span class="select-button">Selecionar imagens</span>
+            </label>
+
+            <div class="file-summary">
+                <h2>Imagens selecionadas</h2>
+                <div>
+                    <span class="file-count" id="fileCount">0 imagens</span>
+                    <button class="text-button" id="clearButton" type="button" disabled>Limpar</button>
+                </div>
+            </div>
+
+            <div class="preview-grid" id="previewGrid" aria-live="polite">
+                <div class="empty-state" style="grid-column: 1 / -1;">Ainda não selecionaste nenhuma imagem.</div>
+            </div>
+
+            <div class="actions">
+                <button class="convert-button" id="convertButton" type="button" disabled>Converter e baixar (.zip)</button>
+                <div class="status" id="status" role="status" aria-live="polite">
+                    <div id="statusText"></div>
+                    <div class="progress-track" id="progressTrack" hidden>
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="privacy-note">
+                <div class="lock" aria-hidden="true">🔒</div>
+                <div>
+                    <strong>As tuas imagens são privadas</strong>
+                    <p>A conversão é executada localmente no teu navegador. Nenhuma imagem é enviada para um servidor. Apenas a biblioteca de compactação é carregada através de um CDN.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>Conversão local de imagens · Sem conta · Sem backend</footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        "use strict";
+
+        const fileInput = document.getElementById("fileInput");
+        const dropzone = document.getElementById("dropzone");
+        const previewGrid = document.getElementById("previewGrid");
+        const fileCount = document.getElementById("fileCount");
+        const clearButton = document.getElementById("clearButton");
+        const convertButton = document.getElementById("convertButton");
+        const status = document.getElementById("status");
+        const statusText = document.getElementById("statusText");
+        const progressTrack = document.getElementById("progressTrack");
+        const progressBar = document.getElementById("progressBar");
+
+        let selectedFiles = [];
+        let isConverting = false;
+
+        const MAX_FILE_SIZE = 100 * 1024 * 1024;
+        const MAX_FILES = 200;
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + " B";
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+            return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+        }
+
+        function isWebP(file) {
+            return file.name.toLowerCase().endsWith(".webp") &&
+                (file.type === "image/webp" || file.type === "");
+        }
+
+        function showStatus(message, type = "info", progress = null) {
+            status.className = "status visible " + type;
+            statusText.textContent = message;
+            progressTrack.hidden = progress === null;
+            if (progress !== null) progressBar.style.width = Math.max(0, Math.min(100, progress)) + "%";
+        }
+
+        function hideStatus() {
+            status.className = "status";
+            statusText.textContent = "";
+            progressTrack.hidden = true;
+            progressBar.style.width = "0%";
+        }
+
+        function updateButtons() {
+            convertButton.disabled = isConverting || selectedFiles.length === 0;
+            clearButton.disabled = isConverting || selectedFiles.length === 0;
+            fileInput.disabled = isConverting;
+        }
+
+        function clearPreviews() {
+            for (const image of previewGrid.querySelectorAll("img")) {
+                if (image.dataset.objectUrl) URL.revokeObjectURL(image.dataset.objectUrl);
+            }
+        }
+
+        function renderPreviews() {
+            clearPreviews();
+            previewGrid.replaceChildren();
+
+            if (selectedFiles.length === 0) {
+                const empty = document.createElement("div");
+                empty.className = "empty-state";
+                empty.style.gridColumn = "1 / -1";
+                empty.textContent = "Ainda não selecionaste nenhuma imagem.";
+                previewGrid.appendChild(empty);
+            }
+
+            selectedFiles.forEach(file => {
+                const item = document.createElement("div");
+                item.className = "preview-item";
+
+                const imageContainer = document.createElement("div");
+                imageContainer.className = "preview-image";
+
+                const image = document.createElement("img");
+                image.alt = "Pré-visualização de " + file.name;
+                image.loading = "lazy";
+                const objectUrl = URL.createObjectURL(file);
+                image.src = objectUrl;
+                image.dataset.objectUrl = objectUrl;
+                imageContainer.appendChild(image);
+
+                const info = document.createElement("div");
+                info.className = "preview-info";
+
+                const name = document.createElement("span");
+                name.className = "preview-name";
+                name.textContent = file.name;
+                name.title = file.name;
+
+                const size = document.createElement("span");
+                size.className = "preview-size";
+                size.textContent = formatSize(file.size);
+
+                info.append(name, size);
+                item.append(imageContainer, info);
+                previewGrid.appendChild(item);
+            });
+
+            fileCount.textContent = selectedFiles.length + (selectedFiles.length === 1 ? " imagem" : " imagens");
+            updateButtons();
+        }
+
+        function addFiles(fileList) {
+            if (isConverting) return;
+            hideStatus();
+
+            const incoming = Array.from(fileList || []);
+            const validFiles = [];
+            const rejected = [];
+
+            for (const file of incoming) {
+                if (!isWebP(file)) {
+                    rejected.push(file.name + ": não é um ficheiro WebP.");
+                    continue;
+                }
+                if (file.size === 0) {
+                    rejected.push(file.name + ": ficheiro vazio.");
+                    continue;
+                }
+                if (file.size > MAX_FILE_SIZE) {
+                    rejected.push(file.name + ": excede o limite de 100 MB.");
+                    continue;
+                }
+                validFiles.push(file);
+            }
+
+            const existing = new Set(selectedFiles.map(file => file.name + "|" + file.size + "|" + file.lastModified));
+
+            for (const file of validFiles) {
+                const key = file.name + "|" + file.size + "|" + file.lastModified;
+                if (existing.has(key)) continue;
+                if (selectedFiles.length >= MAX_FILES) {
+                    rejected.push("Limite de 200 imagens atingido.");
+                    break;
+                }
+                selectedFiles.push(file);
+                existing.add(key);
+            }
+
+            renderPreviews();
+
+            if (rejected.length > 0) {
+                const shownErrors = rejected.slice(0, 5);
+                const remaining = rejected.length - shownErrors.length;
+                showStatus(shownErrors.join(" ") + (remaining > 0 ? " E mais " + remaining + " ficheiros rejeitados." : ""), "error");
+            } else if (selectedFiles.length > 0) {
+                showStatus(selectedFiles.length + " imagens WebP prontas para conversão.", "info");
+            }
+
+            fileInput.value = "";
+        }
+
+        fileInput.addEventListener("change", event => addFiles(event.target.files));
+
+        ["dragenter", "dragover"].forEach(eventName => {
+            dropzone.addEventListener(eventName, event => {
+                event.preventDefault();
+                if (!isConverting) dropzone.classList.add("dragging");
+            });
+        });
+
+        ["dragleave", "drop"].forEach(eventName => {
+            dropzone.addEventListener(eventName, event => {
+                event.preventDefault();
+                dropzone.classList.remove("dragging");
+            });
+        });
+
+        dropzone.addEventListener("drop", event => {
+            if (!isConverting) addFiles(event.dataTransfer.files);
+        });
+
+        clearButton.addEventListener("click", () => {
+            if (isConverting) return;
+            selectedFiles = [];
+            renderPreviews();
+            hideStatus();
+        });
+
+        function canvasToBlob(canvas) {
+            return new Promise((resolve, reject) => {
+                canvas.toBlob(blob => {
+                    if (blob) resolve(blob);
+                    else reject(new Error("Não foi possível gerar o PNG."));
+                }, "image/png");
+            });
+        }
+
+        async function convertToPNG(file) {
+            let bitmap;
+            let canvas;
+
+            try {
+                if (typeof createImageBitmap !== "function") {
+                    throw new Error("Este navegador não suporta createImageBitmap.");
+                }
+
+                bitmap = await createImageBitmap(file);
+                if (bitmap.width === 0 || bitmap.height === 0) {
+                    throw new Error("Imagem sem dimensões válidas.");
+                }
+
+                canvas = document.createElement("canvas");
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+
+                const context = canvas.getContext("2d");
+                if (!context) throw new Error("Não foi possível criar o contexto Canvas.");
+
+                context.drawImage(bitmap, 0, 0);
+                return await canvasToBlob(canvas);
+            } finally {
+                if (bitmap) bitmap.close();
+                if (canvas) {
+                    canvas.width = 0;
+                    canvas.height = 0;
+                }
+            }
+        }
+
+        function getUniquePngName(originalName, usedNames) {
+            const baseName = originalName.replace(/\.webp$/i, "");
+            let candidate = baseName + ".png";
+            let counter = 2;
+
+            while (usedNames.has(candidate.toLowerCase())) {
+                candidate = baseName + " (" + counter + ").png";
+                counter++;
+            }
+
+            usedNames.add(candidate.toLowerCase());
+            return candidate;
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function downloadZip(blob) {
+            const url = URL.createObjectURL(blob);
+            try {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "imagens-convertidas.zip";
+                link.style.display = "none";
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                await delay(1000);
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        convertButton.addEventListener("click", async () => {
+            if (isConverting || selectedFiles.length === 0) return;
+
+            if (typeof JSZip === "undefined") {
+                showStatus("Não foi possível carregar o JSZip. Verifica a ligação à Internet e recarrega a página.", "error");
+                return;
+            }
+
+            isConverting = true;
+            updateButtons();
+
+            const filesToConvert = [...selectedFiles];
+            const zip = new JSZip();
+            const usedNames = new Set();
+            const errors = [];
+            let converted = 0;
+
+            try {
+                for (let i = 0; i < filesToConvert.length; i++) {
+                    const file = filesToConvert[i];
+                    showStatus("Convertendo " + (i + 1) + " de " + filesToConvert.length + ": " + file.name, "info", (i / filesToConvert.length) * 100);
+
+                    try {
+                        const pngBlob = await convertToPNG(file);
+                        const pngName = getUniquePngName(file.name, usedNames);
+                        zip.file(pngName, pngBlob);
+                        converted++;
+                    } catch (error) {
+                        console.error("Erro ao converter " + file.name, error);
+                        errors.push(file.name);
+                    }
+
+                    showStatus("Convertendo imagens: " + (i + 1) + " de " + filesToConvert.length + " processadas.", "info", ((i + 1) / filesToConvert.length) * 100);
+                }
+
+                if (converted === 0) {
+                    showStatus("Nenhuma imagem foi convertida. Verifica se os ficheiros são WebP válidos.", "error");
+                    return;
+                }
+
+                showStatus("Gerando .zip com " + converted + " imagens PNG...", "info", 100);
+
+                const zipBlob = await zip.generateAsync(
+                    { type: "blob", compression: "STORE" },
+                    metadata => showStatus("Gerando .zip: " + Math.round(metadata.percent) + "%", "info", metadata.percent)
+                );
+
+                await downloadZip(zipBlob);
+
+                let message = "Pronto! " + converted + " imagens convertidas. O ficheiro imagens-convertidas.zip foi preparado para download.";
+                if (errors.length > 0) {
+                    message += " " + errors.length + " imagem(ns) falharam: " + errors.slice(0, 5).join(", ") + (errors.length > 5 ? " e outras." : ".");
+                }
+
+                showStatus(message, errors.length > 0 ? "error" : "success", 100);
+            } catch (error) {
+                console.error("Erro ao gerar o ZIP:", error);
+                showStatus("Ocorreu um erro ao gerar ou descarregar o ZIP. Tenta novamente com menos imagens.", "error");
+            } finally {
+                isConverting = false;
+                updateButtons();
+            }
+        });
+
+        renderPreviews();
+    </script>
+</body>
+</html>
