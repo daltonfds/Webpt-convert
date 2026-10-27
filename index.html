@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebP para PNG — Conversor de Imagens</title>
-    <meta name="description" content="Converte imagens WebP para PNG diretamente no teu navegador. Privado, gratuito e sem enviar imagens para servidores.">
+    <title>WebP Convert — Conversor e Gerador de ZIP</title>
+    <meta name="description" content="Converte WebP para PNG e junta imagens de vários formatos num ZIP, diretamente no teu navegador.">
     <meta name="theme-color" content="#ffffff">
     <style>
         :root {
@@ -81,7 +81,7 @@
 <body>
     <header class="header">
         <div class="header-inner">
-            <div class="brand">WebP → PNG</div>
+            <div class="brand">WebP Convert + ZIP</div>
             <div class="privacy-badge">✓ 100% no navegador</div>
         </div>
     </header>
@@ -131,6 +131,38 @@
                 </div>
             </div>
         </section>
+    
+        <section class="card" aria-label="Gerador de ZIP de imagens" style="margin-top:24px;">
+            <div style="margin-bottom:22px;">
+                <h2 style="font-size:22px;margin:0 0 9px;">Gerador de ZIP de imagens</h2>
+                <p style="color:var(--muted);font-size:14px;line-height:1.6;margin:0;">Junta imagens JPG, JPEG, PNG, WebP, GIF, SVG, BMP, TIFF, AVIF e outros formatos num único ficheiro ZIP, sem alterar os ficheiros originais.</p>
+            </div>
+            <label class="dropzone" id="zipDropzone" for="zipFileInput">
+                <input id="zipFileInput" type="file" accept="image/*,.svg,.tif,.tiff,.bmp,.heic,.heif,.avif" multiple aria-label="Selecionar imagens para colocar no ZIP">
+                <div class="upload-icon" aria-hidden="true">▣</div>
+                <strong>Adiciona imagens de vários formatos</strong>
+                <p>Seleciona vários ficheiros ou arrasta-os para esta área.</p>
+                <span class="select-button">Selecionar imagens</span>
+            </label>
+            <div class="file-summary">
+                <h2>Ficheiros para o ZIP</h2>
+                <div><span class="file-count" id="zipFileCount">0 imagens</span>
+                    <button class="text-button" id="zipClearButton" type="button" disabled>Limpar</button>
+                </div>
+            </div>
+            <div class="preview-grid" id="zipPreviewGrid" aria-live="polite">
+                <div class="empty-state" style="grid-column:1 / -1;">Ainda não adicionaste imagens.</div>
+            </div>
+            <div class="actions">
+                <button class="convert-button" id="createZipButton" type="button" disabled>Gerar ZIP e descarregar</button>
+                <div class="status" id="zipStatus" role="status" aria-live="polite">
+                    <div id="zipStatusText"></div>
+                    <div class="progress-track" id="zipProgressTrack" hidden><div class="progress-bar" id="zipProgressBar"></div></div>
+                </div>
+            </div>
+            <p style="font-size:12px;line-height:1.6;color:var(--muted);margin:15px 0 0;">Os ficheiros são guardados no ZIP exatamente nos seus formatos originais. Não são enviados para um servidor.</p>
+        </section>
+
     </main>
 
     <footer>Conversão local de imagens · Sem conta · Sem backend</footer>
@@ -458,6 +490,172 @@
         });
 
         renderPreviews();
+    
+        // Gerador de ZIP: mantém cada imagem no formato original.
+        const zipFileInput = document.getElementById("zipFileInput");
+        const zipDropzone = document.getElementById("zipDropzone");
+        const zipPreviewGrid = document.getElementById("zipPreviewGrid");
+        const zipFileCount = document.getElementById("zipFileCount");
+        const zipClearButton = document.getElementById("zipClearButton");
+        const createZipButton = document.getElementById("createZipButton");
+        const zipStatus = document.getElementById("zipStatus");
+        const zipStatusText = document.getElementById("zipStatusText");
+        const zipProgressTrack = document.getElementById("zipProgressTrack");
+        const zipProgressBar = document.getElementById("zipProgressBar");
+        let zipFiles = [];
+        let isCreatingZip = false;
+        const ZIP_MAX_FILES = 200;
+        const ZIP_MAX_FILE_SIZE = 100 * 1024 * 1024;
+        const allowedImageExtensions = /\.(avif|bmp|gif|heic|heif|jpe?g|jfif|png|svg|tif?f|webp)$/i;
+
+        function showZipStatus(message, type = "info", progress = null) {
+            zipStatus.className = "status visible " + type;
+            zipStatusText.textContent = message;
+            zipProgressTrack.hidden = progress === null;
+            if (progress !== null) zipProgressBar.style.width = Math.max(0, Math.min(100, progress)) + "%";
+        }
+        function hideZipStatus() {
+            zipStatus.className = "status";
+            zipStatusText.textContent = "";
+            zipProgressTrack.hidden = true;
+            zipProgressBar.style.width = "0%";
+        }
+        function renderZipPreviews() {
+            for (const image of zipPreviewGrid.querySelectorAll("img")) {
+                if (image.dataset.objectUrl) URL.revokeObjectURL(image.dataset.objectUrl);
+            }
+            zipPreviewGrid.replaceChildren();
+            if (zipFiles.length === 0) {
+                const empty = document.createElement("div");
+                empty.className = "empty-state";
+                empty.style.gridColumn = "1 / -1";
+                empty.textContent = "Ainda não adicionaste imagens.";
+                zipPreviewGrid.appendChild(empty);
+            }
+            for (const file of zipFiles) {
+                const item = document.createElement("div");
+                item.className = "preview-item";
+                const imageContainer = document.createElement("div");
+                imageContainer.className = "preview-image";
+                const image = document.createElement("img");
+                image.alt = "Pré-visualização de " + file.name;
+                image.loading = "lazy";
+                const url = URL.createObjectURL(file);
+                image.src = url;
+                image.dataset.objectUrl = url;
+                image.onerror = () => { image.removeAttribute("src"); image.alt = "Pré-visualização indisponível"; };
+                imageContainer.appendChild(image);
+                const info = document.createElement("div");
+                info.className = "preview-info";
+                const name = document.createElement("span");
+                name.className = "preview-name";
+                name.textContent = file.name;
+                name.title = file.name;
+                const size = document.createElement("span");
+                size.className = "preview-size";
+                size.textContent = formatSize(file.size) + " · " + (file.type || "formato original");
+                info.append(name, size);
+                item.append(imageContainer, info);
+                zipPreviewGrid.appendChild(item);
+            }
+            zipFileCount.textContent = zipFiles.length + (zipFiles.length === 1 ? " imagem" : " imagens");
+            zipFileInput.disabled = isCreatingZip;
+            zipClearButton.disabled = isCreatingZip || zipFiles.length === 0;
+            createZipButton.disabled = isCreatingZip || zipFiles.length === 0;
+        }
+        function addZipFiles(fileList) {
+            if (isCreatingZip) return;
+            hideZipStatus();
+            const rejected = [];
+            const existing = new Set(zipFiles.map(file => file.name + "|" + file.size + "|" + file.lastModified));
+            for (const file of Array.from(fileList || [])) {
+                if (!(file.type.startsWith("image/") || allowedImageExtensions.test(file.name))) {
+                    rejected.push(file.name + ": formato não reconhecido como imagem.");
+                    continue;
+                }
+                if (!file.size) { rejected.push(file.name + ": ficheiro vazio."); continue; }
+                if (file.size > ZIP_MAX_FILE_SIZE) { rejected.push(file.name + ": excede o limite de 100 MB."); continue; }
+                const key = file.name + "|" + file.size + "|" + file.lastModified;
+                if (existing.has(key)) continue;
+                if (zipFiles.length >= ZIP_MAX_FILES) { rejected.push("Limite de 200 imagens atingido."); break; }
+                zipFiles.push(file);
+                existing.add(key);
+            }
+            renderZipPreviews();
+            if (rejected.length) {
+                showZipStatus(rejected.slice(0, 5).join(" ") + (rejected.length > 5 ? " E mais " + (rejected.length - 5) + " ficheiros rejeitados." : ""), "error");
+            } else if (zipFiles.length) {
+                showZipStatus(zipFiles.length + " imagens prontas para compactar. Os formatos originais serão mantidos.", "info");
+            }
+            zipFileInput.value = "";
+        }
+        zipFileInput.addEventListener("change", event => addZipFiles(event.target.files));
+        ["dragenter", "dragover"].forEach(name => zipDropzone.addEventListener(name, event => {
+            event.preventDefault();
+            if (!isCreatingZip) zipDropzone.classList.add("dragging");
+        }));
+        ["dragleave", "drop"].forEach(name => zipDropzone.addEventListener(name, event => {
+            event.preventDefault();
+            zipDropzone.classList.remove("dragging");
+        }));
+        zipDropzone.addEventListener("drop", event => {
+            if (!isCreatingZip) addZipFiles(event.dataTransfer.files);
+        });
+        zipClearButton.addEventListener("click", () => {
+            if (isCreatingZip) return;
+            zipFiles = [];
+            renderZipPreviews();
+            hideZipStatus();
+        });
+        createZipButton.addEventListener("click", async () => {
+            if (isCreatingZip || zipFiles.length === 0) return;
+            if (typeof JSZip === "undefined") {
+                showZipStatus("Não foi possível carregar a biblioteca ZIP. Verifica a ligação à Internet e tenta novamente.", "error");
+                return;
+            }
+            isCreatingZip = true;
+            renderZipPreviews();
+            const filesToZip = [...zipFiles];
+            const zip = new JSZip();
+            const usedNames = new Set();
+            try {
+                filesToZip.forEach((file, index) => {
+                    let name = file.name.replace(/[\\/:*?"<>|]/g, "_").trim() || ("imagem-" + (index + 1));
+                    const dot = name.lastIndexOf(".");
+                    const base = dot > 0 ? name.slice(0, dot) : name;
+                    const extension = dot > 0 ? name.slice(dot) : "";
+                    let suffix = 2;
+                    while (usedNames.has(name.toLowerCase())) name = base + " (" + suffix++ + ")" + extension;
+                    usedNames.add(name.toLowerCase());
+                    zip.file(name, file, { binary: true, date: new Date(file.lastModified || Date.now()) });
+                });
+                showZipStatus("A compactar " + filesToZip.length + " imagens...", "info", 0);
+                const blob = await zip.generateAsync(
+                    { type: "blob", compression: "DEFLATE", compressionOptions: { level: 4 } },
+                    metadata => showZipStatus("A gerar ZIP: " + Math.round(metadata.percent) + "%", "info", metadata.percent)
+                );
+                const url = URL.createObjectURL(blob);
+                try {
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = "imagens.zip";
+                    link.style.display = "none";
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    await delay(1000);
+                } finally { URL.revokeObjectURL(url); }
+                showZipStatus("Concluído! " + filesToZip.length + " imagens incluídas em imagens.zip. Os formatos originais foram preservados.", "success", 100);
+            } catch (error) {
+                console.error("Erro ao gerar ZIP de imagens:", error);
+                showZipStatus("Não foi possível gerar o ZIP. Tenta novamente com menos imagens.", "error");
+            } finally {
+                isCreatingZip = false;
+                renderZipPreviews();
+            }
+        });
+        renderZipPreviews();
+
     </script>
 </body>
 </html>
