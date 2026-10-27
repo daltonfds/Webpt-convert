@@ -629,8 +629,12 @@
                     while (usedNames.has(name.toLowerCase())) name = base + " (" + suffix++ + ")" + extension;
                     usedNames.add(name.toLowerCase());
                     showZipStatus("A preparar " + (index + 1) + " de " + filesToZip.length + ": " + file.name, "info", (index / filesToZip.length) * 30);
-                    // Read each File explicitly as bytes for consistent mobile-browser support.
-                    const bytes = new Uint8Array(await file.arrayBuffer());
+                    const bytes = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(new Uint8Array(reader.result));
+                        reader.onerror = () => reject(reader.error || new Error("O navegador perdeu acesso ao ficheiro. Seleciona-o novamente."));
+                        reader.readAsArrayBuffer(file);
+                    });
                     zip.file(name, bytes, { binary: true, date: new Date() });
                 }
                 showZipStatus("A compactar " + filesToZip.length + " imagens...", "info", 30);
