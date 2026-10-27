@@ -619,7 +619,8 @@
             const zip = new JSZip();
             const usedNames = new Set();
             try {
-                filesToZip.forEach((file, index) => {
+                for (let index = 0; index < filesToZip.length; index++) {
+                    const file = filesToZip[index];
                     let name = file.name.replace(/[\\/:*?"<>|]/g, "_").trim() || ("imagem-" + (index + 1));
                     const dot = name.lastIndexOf(".");
                     const base = dot > 0 ? name.slice(0, dot) : name;
@@ -627,12 +628,15 @@
                     let suffix = 2;
                     while (usedNames.has(name.toLowerCase())) name = base + " (" + suffix++ + ")" + extension;
                     usedNames.add(name.toLowerCase());
-                    zip.file(name, file, { binary: true, date: new Date(file.lastModified || Date.now()) });
-                });
-                showZipStatus("A compactar " + filesToZip.length + " imagens...", "info", 0);
+                    showZipStatus("A preparar " + (index + 1) + " de " + filesToZip.length + ": " + file.name, "info", (index / filesToZip.length) * 30);
+                    // Read each File explicitly as bytes for consistent mobile-browser support.
+                    const bytes = new Uint8Array(await file.arrayBuffer());
+                    zip.file(name, bytes, { binary: true, date: new Date() });
+                }
+                showZipStatus("A compactar " + filesToZip.length + " imagens...", "info", 30);
                 const blob = await zip.generateAsync(
-                    { type: "blob", compression: "DEFLATE", compressionOptions: { level: 4 } },
-                    metadata => showZipStatus("A gerar ZIP: " + Math.round(metadata.percent) + "%", "info", metadata.percent)
+                    { type: "blob", compression: "STORE" },
+                    metadata => showZipStatus("A gerar ZIP: " + Math.round(30 + metadata.percent * 0.7) + "%", "info", 30 + metadata.percent * 0.7)
                 );
                 const url = URL.createObjectURL(blob);
                 try {
@@ -648,7 +652,7 @@
                 showZipStatus("Concluído! " + filesToZip.length + " imagens incluídas em imagens.zip. Os formatos originais foram preservados.", "success", 100);
             } catch (error) {
                 console.error("Erro ao gerar ZIP de imagens:", error);
-                showZipStatus("Não foi possível gerar o ZIP. Tenta novamente com menos imagens.", "error");
+                showZipStatus("Falha ao gerar o ZIP: " + (error && error.message ? error.message : String(error)) + ". Confirma o espaço disponível e tenta novamente.", "error");
             } finally {
                 isCreatingZip = false;
                 renderZipPreviews();
